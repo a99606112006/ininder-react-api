@@ -1,0 +1,166 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
+using share_login_api.Models;
+using System.Diagnostics;
+
+namespace share_login_api.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ProfileController : ControllerBase
+    {
+        private readonly ProfileDbContext _context;
+        private readonly UserDBreactContext _context2;
+        private readonly IWebHostEnvironment _hostEnvironment;
+
+        public ProfileController(ProfileDbContext context, UserDBreactContext context2, IWebHostEnvironment hostEnvironment)
+        {
+            _context = context;
+            _context2 = context2;
+            this._hostEnvironment = hostEnvironment;
+        }
+
+        // GET: api/Employee
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<ProfileModel>>> GetProfiles()
+        {
+            return await _context.Profile
+
+                .Select(x => new ProfileModel()
+                {
+                    Id = x.Id,
+                    Quesion = x.Quesion,
+                    CorrectAnswer = x.CorrectAnswer,
+                    Answer2 = x.Answer2,
+                    Answer3 = x.Answer3,
+                    Answer4 = x.Answer4,
+                   
+                    ImageName = x.ImageName,
+                    ImageSrc = String.Format("{0}://{1}{2}/Images/{3}", Request.Scheme, Request.Host, Request.PathBase, x.ImageName),
+                    User_id = x.User_id
+
+                })
+                .ToListAsync();
+
+
+        }
+
+        // GET: api/Employee/5
+        [HttpPost("GetFriends")]
+        public async Task<ActionResult<IEnumerable<ProfileModel>>> GetFriends(int [] friends)
+        {
+
+            return await _context.Profile
+                .Where(x => friends.Contains(x.User_id))
+                                .Select(x => new ProfileModel()
+                                {
+                                    Id = x.Id,
+                                    Quesion = x.Quesion,
+                                    CorrectAnswer = x.CorrectAnswer,
+                                    Answer2 = x.Answer2,
+                                    Answer3 = x.Answer3,
+                                    Answer4 = x.Answer4,
+
+                                    ImageName = x.ImageName,
+                                    ImageSrc = String.Format("{0}://{1}{2}/Images/{3}", Request.Scheme, Request.Host, Request.PathBase, x.ImageName),
+                                    User_id = x.User_id
+
+                                })
+                .ToListAsync();
+        }
+
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutProfileModel(int id, [FromForm] ProfileModel profileModel)
+        {
+            if (id != profileModel.Id)
+            {
+                return BadRequest();
+            }
+
+
+
+            _context.Entry(profileModel).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!ProfileModelExists(id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent();
+        }
+
+        // POST: api/Employee
+        // To protect from overposting attacks, enable the specific properties you want to bind to, for
+        // more details, see https://go.microsoft.com/fwlink/?linkid=2123754.
+        [HttpPost]
+        public async Task<ActionResult<ProfileModel>> PostProfileModel([FromForm] ProfileModel profileModel)
+        {
+            profileModel.ImageName = await SaveImage(profileModel.ImageFile);
+            _context.Profile.Add(profileModel);
+            await _context.SaveChangesAsync();
+
+            return StatusCode(201);
+        }
+
+        // DELETE: api/Employee/5
+        [HttpDelete("{id}")]
+        public async Task<ActionResult<ProfileModel>> DeleteProfileModel(int id)
+        {
+            var profileModel = await _context.Profile.FindAsync(id);
+            if (profileModel == null)
+            {
+                return NotFound();
+            }
+            DeleteImage(profileModel.ImageName);
+            _context.Profile.Remove(profileModel);
+            await _context.SaveChangesAsync();
+
+            return profileModel;
+        }
+
+        private bool ProfileModelExists(int id)
+        {
+            return _context.Profile.Any(e => e.Id == id);
+        }
+
+        [NonAction]
+        public async Task<string> SaveImage(IFormFile imageFile)
+        {
+            string imageName = new String(Path.GetFileNameWithoutExtension(imageFile.FileName).Take(10).ToArray()).Replace(' ', '-');
+            imageName = imageName + DateTime.Now.ToString("yymmssfff") + Path.GetExtension(imageFile.FileName);
+            var imagePath = Path.Combine(_hostEnvironment.ContentRootPath, "Images", imageName);
+            using (var fileStream = new FileStream(imagePath, FileMode.Create))
+            {
+                await imageFile.CopyToAsync(fileStream);
+            }
+            return imageName;
+        }
+
+        [NonAction]
+        public void DeleteImage(string imageName)
+        {
+            var imagePath = Path.Combine(_hostEnvironment.ContentRootPath, "Images", imageName);
+            if (System.IO.File.Exists(imagePath))
+                System.IO.File.Delete(imagePath);
+        }
+    }
+}
